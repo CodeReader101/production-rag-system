@@ -8,15 +8,15 @@ from slowapi.errors import RateLimitExceeded
 from langsmith import traceable
 from dotenv import load_dotenv
 
-from app.config import get_settings
-from app.models import (
+from config import get_settings
+from models import (
     ChatRequest, ChatResponse, HealthResponse, MetricsResponse, ErrorResponse
 )
 
-from app.security import SecurityPipeline
-from app.cache import RedisResponseCache
-from app.monitoring import get_logger, MetricsCollector, RequestTimer
-from app.agent import ProductionAgent
+from security import SecurityPipeline
+from cache import RedisResponseCache
+from monitoring import get_logger, MetricsCollector, RequestTimer
+from agent import ProductionAgent
 
 load_dotenv()
 
