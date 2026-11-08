@@ -1,25 +1,3 @@
-# from fastapi import FastAPI
-# from agent import ProductionAgent
-# from models import ChatRequest, ChatResponse, HealthResponse, MetricsResponse, ErrorResponse
-
-
-# agent = ProductionAgent()
-
-
-# app = FastAPI()
-
-# @app.get("/")
-# def home():
-#     return {"message": "running..."}
-
-# @app.post("/chat")
-# def chat(body: ChatRequest):
-#     result = agent.invoke(body.message)
-#     return result
-
-
-import time
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, HTTPException
@@ -32,72 +10,70 @@ from dotenv import load_dotenv
 
 from app.config import get_settings
 from app.models import (
-    ChatRequest, ChatResponse,
-    HealthResponse, MetricsResponse, ErrorResponse
+    ChatRequest, ChatResponse, HealthResponse, MetricsResponse, ErrorResponse
 )
 
 from app.security import SecurityPipeline
-from app.cache import ResponseCache
+from app.cache import RedisResponseCache
 from app.monitoring import get_logger, MetricsCollector, RequestTimer
 from app.agent import ProductionAgent
 
-
 load_dotenv()
 
-
 security: SecurityPipeline = None
-cache: ResponseCache = None
+cache: RedisResponseCache = None
 metrics: MetricsCollector = None
 agent: ProductionAgent = None
 logger = get_logger()
 
-# === Lifespan (starup/shutdown) ===    
+
+# === Lifespan (startup/shutdown) ===
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
     Initialize all components on startup, clean up on shutdown.
-    This is the modern FastAPI pattern (replaces @app.on_event)
     """
 
-    global security, cache, metrics, agent  
+    global security, cache, metrics, agent
 
     settings = get_settings()
 
-    logger.info("Starting production API...", extra={"extra_data": {
-        "environment": settings.app_env,
-        "primary_model": settings.primary_model,
-        # "tracing_enabled": settings.langchain_tracing,
-        "tracing_enabled": settings.langsmith_tracing,
-    }})
+    logger.info(
+        "Starting production API...", extra={"extra_data":{
+            "enviroment": settings.app_env,
+            "primary_model": settings.primary_model,
+            "tracing_enabled": settings.langsmith_tracing,
+        }}
+    )
 
     # Initialize components
 
     security = SecurityPipeline()
-    cache = ResponseCache(ttl_seconds=settings.cache_ttl_seconds)
+    cache = RedisResponseCache()
     metrics = MetricsCollector()
     agent = ProductionAgent()
 
     logger.info("All components initialized. Ready to serve requests")
 
-    yield # App is running
+    yield
 
-    # shutdown
-    logger.info("Shutting down...", extra={"extra_data": metrics.summary})  
-
+    logger.info("Shutting down...", extr={
+        "extra_data": metrics.summary
+    })
 
 
 # === Rate Limiter Setup ===
 
 limiter = Limiter(key_func=get_remote_address)
 
-# === FastAPI App ===
+# === FastAPI App === 
 
 app = FastAPI(
-    title="production LangGraph API",
-    description="A production-ready chat API with security, caching and observability",
+    title="Production LangGraph API",
+    description="A produciton-ready chat API with security, caching and observibility",
     version="1.0.0",
-    lifespan=lifespan,
+    lifespan=lifespan
 )
 app.state.limiter = limiter
 
@@ -111,12 +87,11 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
         content={
             "error": "Rate limit exceeded",
             "detail": "Too many requests. Please slow down."
-        },
+        }
     )
 
 
-
-# ENDPOINTS
+# === Endpoints ===
 
 @app.post("/chat", response_model=ChatResponse)
 @limiter.limit(get_settings().rate_limit)
@@ -126,7 +101,7 @@ async def chat(request: Request, body: ChatRequest):
     Main chat endpoint.
     
     Flow:
-    1. Security check (injection + PII masking)
+    1. Security check (Injection + PII Masking)
     2. Cache lookup
     3. LangGraph agent invoke (if cache miss)
     4. Output validation
@@ -137,29 +112,35 @@ async def chat(request: Request, body: ChatRequest):
     with RequestTimer() as timer:
         security_notes = []
 
-        # --- Step 1: Security Check ---
+        # -- Step 1: Security Check ---
         is_allowed, cleaned_message, notes = security.check_input(body.message)
         security_notes.extend(notes)
 
         if not is_allowed:
-            logger.warning("Request blocked by security", extra={"extra_data":{
-                "reason": notes,
-                "thread_id": body.thread_id,
-            }})
+            logger.warning("Request blocked by security", extra={
+                "extra_data": {
+                    "reason": notes,
+                    "thread_id": body.thread_id
+                }
+            })
             metrics.record_request(latency_ms=0, error=True)
             raise HTTPException(
                 status_code=400,
-                detail="Your message was blocked by our security filters."
+                detail="your message was blocked by our security filters."
             )
 
-        
         # --- Step 2: Cache Lookup ---
         cached_response = cache.get(cleaned_message)
         if cached_response is not None:
-            metrics.record_request(latency_ms=0, cache_hit=True)
-            logger.info("Cache hit", extra={"extra_data": {
-                "thread_id": body.thread_id,
-            }})
+            metrics.record_request(
+                latency_ms=0,
+                cache_hit=True
+            )
+            logger.info("Cache hit", extra={
+                "extra_data": {
+                    "thread_id": body.thread_id,
+                }
+            })
             return ChatResponse(
                 response=cached_response,
                 thread_id=body.thread_id,
@@ -168,19 +149,11 @@ async def chat(request: Request, body: ChatRequest):
                 processing_time_ms=0,
             )
 
-        # --- Step 3: Invoke LangGraph Agent ---
+
+        # --- Step 3: Invoke LangGrpah Agent ---
 
         try:
             result = agent.invoke(cleaned_message)
-
-            # for debug
-            # if result.get("error"):
-            #     logger.error(f"Agent error: {result['error']}", extra={"extra_data": {
-            #         "thread_id": body.thread_id,
-            #         "model_used": result["model_used"],
-            #     }})
-            # from top debug to here is just debug code
-            
         except Exception as e:
             logger.error(F"Agent invocation failed: {e}", extra={"extra_data": {
                 "thread_id": body.thread_id,
@@ -199,13 +172,13 @@ async def chat(request: Request, body: ChatRequest):
         validated_response, output_warnings = security.check_output(response_text)
         security_notes.extend(output_warnings)
 
-        # --- Step 5: Cache Store ---
-        cache.set(cleaned_message, validated_response) 
+        # -- Step 5: Cache Store ---
+        cache.set(cleaned_message, validated_response)
 
         if model_used != "error_handler":
-            cache.set(cleaned_message, validated_response) 
+            cache.set(cleaned_message, validated_response)
 
-    # --- Step 6: Log & Record Metrics ---
+        # --- Step 6: Log & Record Metrics ---
     input_tokens = int(len(cleaned_message.split()) * 1.3)
     output_tokens = int(len(validated_response.split()) * 1.3)
 
@@ -238,6 +211,7 @@ async def chat(request: Request, body: ChatRequest):
 
 
 
+
 @app.get("/health", response_model=HealthResponse)
 async def health():
      """Health check for Docker/Kubernetes"""
@@ -267,4 +241,3 @@ async def get_metrics():
 async def cache_stats(): 
     """Cache performance statistics."""
     return cache.stats
-

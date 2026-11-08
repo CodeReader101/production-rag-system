@@ -13,6 +13,7 @@ dependencies = [
     "langchain-openrouter>=0.2.9",
     "langgraph>=1.2.19",
     "redis>=8.1.0",
+    "slowapi>=0.1.10",
 ]
 
 [project.scripts]
