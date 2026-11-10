@@ -8,12 +8,16 @@ authors = [
 ]
 requires-python = ">=3.14"
 dependencies = [
+    "asyncpg>=0.32.0",
     "fastapi[standard]>=0.162.0",
     "langchain>=1.4.7",
+    "langchain-openai>=1.7.4",
     "langchain-openrouter>=0.2.9",
+    "langchain-postgres>=0.0.19",
     "langgraph>=1.2.19",
     "redis>=8.1.0",
     "slowapi>=0.1.10",
+    "sqlalchemy>=2.1.8",
 ]
 
 [project.scripts]

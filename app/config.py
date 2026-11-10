@@ -6,7 +6,7 @@ from functools import lru_cache
 class Settings(BaseSettings):
 
     # LLM configuration
-    openrouter_api_key: SecretStr = ""
+    openrouter_api_key: SecretStr
     primary_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free" 
     fallback_model: str = "recursive/flint-v1.0:free"
 
@@ -21,6 +21,18 @@ class Settings(BaseSettings):
     rate_limit: str = "20/minute"
     cache_ttl_seconds: int = 300
     max_retries: int = 3
+
+    # RAG
+    rag_collection: str = "documents"
+    rag_top_k: int = 4
+    rag_min_score: float = 0.35
+    embedding_model: str = "nvidia/nemotron-3-embed-1b:free"
+    embedding_dim: int = 1536
+    qdrant_url: str = ""
+    admin_api_key: str
+
+    database_url: str
+    redis_url: str = "redis://localhost:6379/0"
 
     model_config = {"env_file": ".env", "extra": "ignore"}  
 

@@ -36,6 +36,7 @@ class InputSanitizer:
                 return False, f"Blocked: potential prompt injection detected: {pattern.pattern}"
         return True, None
 
+    # this strips --- and === this alters legimate markdown and separator, it's fine just be aware
     def clean(self, text: str) -> str:
         """Remove potentially dangerous content"""
         # Remove common injection delimiters
@@ -58,11 +59,11 @@ class PIIDetector:
     """
 
     PATTERNS = {
-        "email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b",
-        "phone": r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b",
+        "credit_card": r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b",        
         "ssn": r"\b\d{3}-\d{2}-\d{4}\b",
-        "credit_card": r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b",
+        "email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b",
         "ip_address": r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b",
+        "phone": r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b",
     }
 
     def detect(self, text: str) -> dict[str, list[str]]:
@@ -73,7 +74,7 @@ class PIIDetector:
             matches = re.findall(pattern, text)
             if matches:
                 found[pii_type] = matches
-            return found
+        return found
 
     MASK_MAP = {
         "email": "[EMAIL REDACTED]",
@@ -109,7 +110,7 @@ class OutputValidator:
     def __init__(self):
         self.pii_detector = PIIDetector()
 
-    def validate(self, output: str) -> tuple[bool, str, Optional[str]]: 
+    def validate(self, output: str) -> tuple[str, list[str]]: 
         """
         Validate output
         Return: (is_valid, cleaned_output, reason_if_invalid)

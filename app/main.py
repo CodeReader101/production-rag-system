@@ -1,12 +1,12 @@
+from dotenv import load_dotenv
 from contextlib import asynccontextmanager
-
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from langsmith import traceable
-from dotenv import load_dotenv
+
 
 from config import get_settings
 from models import (
@@ -58,9 +58,10 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    logger.info("Shutting down...", extr={
+    logger.info("Shutting down...", extra={
         "extra_data": metrics.summary
     })
+    await cache.close()
 
 
 # === Rate Limiter Setup ===
@@ -130,7 +131,7 @@ async def chat(request: Request, body: ChatRequest):
             )
 
         # --- Step 2: Cache Lookup ---
-        cached_response = cache.get(cleaned_message)
+        cached_response = await cache.get(cleaned_message)
         if cached_response is not None:
             metrics.record_request(
                 latency_ms=0,
@@ -153,7 +154,7 @@ async def chat(request: Request, body: ChatRequest):
         # --- Step 3: Invoke LangGrpah Agent ---
 
         try:
-            result = agent.invoke(cleaned_message)
+            result = await agent.ainvoke(cleaned_message)
         except Exception as e:
             logger.error(F"Agent invocation failed: {e}", extra={"extra_data": {
                 "thread_id": body.thread_id,
@@ -173,10 +174,8 @@ async def chat(request: Request, body: ChatRequest):
         security_notes.extend(output_warnings)
 
         # -- Step 5: Cache Store ---
-        cache.set(cleaned_message, validated_response)
-
         if model_used != "error_handler":
-            cache.set(cleaned_message, validated_response)
+            await cache.set(cleaned_message, validated_response)
 
         # --- Step 6: Log & Record Metrics ---
     input_tokens = int(len(cleaned_message.split()) * 1.3)
@@ -240,4 +239,4 @@ async def get_metrics():
 @app.get("/cache/stats")
 async def cache_stats(): 
     """Cache performance statistics."""
-    return cache.stats
+    return await cache.get_stats()

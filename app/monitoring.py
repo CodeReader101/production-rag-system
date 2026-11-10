@@ -9,7 +9,6 @@ import time
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
-load_dotenv()
 
 class JSONFormatter(logging.Formatter):
     """Format log records as JSON for log aggregation (ELK, Datadog, etc.)"""
@@ -26,6 +25,7 @@ class JSONFormatter(logging.Formatter):
         # Merget any extra data attached to the record
         if hasattr(record, "extra_data"):
             log_obj.update(record.extra_data)
+
         return json.dumps(log_obj, default=str)
 
 def get_logger(name: str = "production-api") -> logging.Logger:

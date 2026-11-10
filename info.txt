@@ -1,0 +1,1 @@
+Metrics are not thread-safe or process-safe. Plain dict increments are fine on a single async event loop. But with multiple uvicorn workers, each worker has its own counters, so /metrics shows only one worker’s numbers. Mention in the README that you’d use Prometheus for real deployments.
