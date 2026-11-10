@@ -6,7 +6,8 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from langsmith import traceable
-
+import secrets
+from fastapi import Header, HTTPException
 
 from config import get_settings
 from models import (
@@ -18,12 +19,29 @@ from cache import RedisResponseCache
 from monitoring import get_logger, MetricsCollector, RequestTimer
 from agent import ProductionAgent
 
+import json
+from fastapi import Header
+from rag import RAGPipeline
+from models import IngestRequest, IngestResponse
+
+import asyncio
+import io
+import secrets
+from pathlib import Path
+
+from fastapi import File, Form, Header, HTTPException, UploadFile
+
 load_dotenv()
+
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+SUPPORTED = {".txt", ".md", ".pdf", ".docx"}
+
 
 security: SecurityPipeline = None
 cache: RedisResponseCache = None
 metrics: MetricsCollector = None
 agent: ProductionAgent = None
+rag: RAGPipeline = None
 logger = get_logger()
 
 
@@ -35,7 +53,7 @@ async def lifespan(app: FastAPI):
     Initialize all components on startup, clean up on shutdown.
     """
 
-    global security, cache, metrics, agent
+    global security, cache, metrics, agent, rag
 
     settings = get_settings()
 
@@ -52,7 +70,9 @@ async def lifespan(app: FastAPI):
     security = SecurityPipeline()
     cache = RedisResponseCache()
     metrics = MetricsCollector()
-    agent = ProductionAgent()
+    rag = RAGPipeline()
+    await rag.setup()
+    agent = ProductionAgent(rag)
 
     logger.info("All components initialized. Ready to serve requests")
 
@@ -62,6 +82,7 @@ async def lifespan(app: FastAPI):
         "extra_data": metrics.summary
     })
     await cache.close()
+    await rag.close()
 
 
 # === Rate Limiter Setup ===
@@ -93,6 +114,11 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
 
 
 # === Endpoints ===
+
+@app.get("/")
+def home():
+    return {"message": "The RAG System Running..."}
+
 
 @app.post("/chat", response_model=ChatResponse)
 @limiter.limit(get_settings().rate_limit)
@@ -131,8 +157,9 @@ async def chat(request: Request, body: ChatRequest):
             )
 
         # --- Step 2: Cache Lookup ---
-        cached_response = await cache.get(cleaned_message)
-        if cached_response is not None:
+        cached_raw = await cache.get(cleaned_message)
+        if cached_raw is not None:
+            cached = json.loads(cached_raw)
             metrics.record_request(
                 latency_ms=0,
                 cache_hit=True
@@ -143,18 +170,19 @@ async def chat(request: Request, body: ChatRequest):
                 }
             })
             return ChatResponse(
-                response=cached_response,
+                response=cached["response"],
+                sources=cached.get("sources", []),
                 thread_id=body.thread_id,
                 model_used="cache",
                 cached=True,
-                processing_time_ms=0,
+                processing_time_ms=0
             )
-
 
         # --- Step 3: Invoke LangGrpah Agent ---
 
         try:
             result = await agent.ainvoke(cleaned_message)
+            logger.info(f"agent result keys: {list(result.keys())}")
         except Exception as e:
             logger.error(F"Agent invocation failed: {e}", extra={"extra_data": {
                 "thread_id": body.thread_id,
@@ -174,8 +202,13 @@ async def chat(request: Request, body: ChatRequest):
         security_notes.extend(output_warnings)
 
         # -- Step 5: Cache Store ---
+        sources = result["sources"]
+
         if model_used != "error_handler":
-            await cache.set(cleaned_message, validated_response)
+            await cache.set(
+                cleaned_message, 
+                json.dumps({"response": validated_response, "sources": sources})
+            )
 
         # --- Step 6: Log & Record Metrics ---
     input_tokens = int(len(cleaned_message.split()) * 1.3)
@@ -201,13 +234,34 @@ async def chat(request: Request, body: ChatRequest):
     }})
 
     return ChatResponse(
-         response=validated_response,
-         thread_id=body.thread_id,
-         model_used=model_used,
-         cached=False,
-         processing_time_ms=round(timer.elapsed_ms, 2)
+        response=validated_response,
+        sources=sources,          # this line is the fix
+        thread_id=body.thread_id,
+        model_used=model_used,
+        cached=False,
+        processing_time_ms=round(timer.elapsed_ms, 2),
     )
 
+
+@app.post("/ingest", response_model=IngestResponse)
+async def ingest(body: IngestRequest, x_api_key: str = Header(...)):
+    if not x_api_key or not secrets.compare_digest(
+        x_api_key, get_settings().admin_api_key
+    ):
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+    ok, reason = security.sanitizer.check(body.text)
+    if not ok:
+        logger.warning("Suspicious ingest content", extra={"extra_data": {
+            "source": body.source,
+            "reason": reason
+        }})
+
+    count = await rag.ingest(body.text, body.source)
+    await cache.invalidate()
+    return IngestResponse(source=body.source, chunks_indexed=count)
+
+    
 
 
 
@@ -240,3 +294,63 @@ async def get_metrics():
 async def cache_stats(): 
     """Cache performance statistics."""
     return await cache.get_stats()
+
+
+
+
+
+
+def extract_text(filename: str, data: bytes) -> str:
+    ext = Path(filename).suffix.lower()
+    if ext in {".txt", ".md"}:
+        return data.decode("utf-8", errors="replace")
+    if ext == ".pdf":
+        from pypdf import PdfReader
+        reader = PdfReader(io.BytesIO(data))
+        return "\n\n".join(page.extract_text() or "" for page in reader.pages)
+    if ext == ".docx":
+        from docx import Document
+        doc = Document(io.BytesIO(data))
+        return "\n".join(p.text for p in doc.paragraphs)
+    raise ValueError(f"Unsupported file type: {ext}")
+
+
+@app.post("/ingest/file", response_model=IngestResponse)
+async def ingest_file(
+    file: UploadFile = File(...),
+    source: str | None = Form(None),
+    x_api_key: str = Header(...),
+):
+    if not secrets.compare_digest(x_api_key, get_settings().admin_api_key):
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+    filename = Path(file.filename or "upload").name  # strip any path parts
+    if Path(filename).suffix.lower() not in SUPPORTED:
+        raise HTTPException(status_code=415, detail="Unsupported file type")
+
+    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File too large")
+
+    # PDF/DOCX parsing is CPU-bound and blocking, so keep it off the event loop
+    try:
+        text = await asyncio.to_thread(extract_text, filename, data)
+    except Exception:
+        logger.exception("Failed to extract text", extra={"extra_data": {"file": filename}})
+        raise HTTPException(status_code=422, detail="Could not read file")
+
+    if not text.strip():
+        raise HTTPException(status_code=422, detail="No extractable text in file")
+
+    source = source or filename
+
+    ok, reason = security.sanitizer.check(text)
+    if not ok:
+        logger.warning("Suspicious ingest content", extra={"extra_data": {
+            "source": source,
+            "reason": reason,
+        }})
+
+    count = await rag.ingest(text, source)
+    await cache.invalidate()
+    return IngestResponse(source=source, chunks_indexed=count)

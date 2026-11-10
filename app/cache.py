@@ -69,5 +69,15 @@ class RedisResponseCache:
             "cached_entries": entries,
         }
 
+    async def invalidate(self) -> int:
+        deleted = 0
+        try:
+            async for key in self._r.scan_iter(f"{self.prefix}:resp:*"):
+                await self._r.delete(key)
+                deleted += 1
+        except RedisError:
+            pass
+        return deleted
+
     async def close(self):
         await self._r.aclose()   

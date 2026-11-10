@@ -16,29 +16,33 @@ logger = get_logger()
 
 @dataclass
 class RetrievedChunk:
-    text: set
+    text: str
     source: str
     score: float
 
+
 class RAGPipeline:
+    """Chunk -> embed -> store (ingest) and embed -> search (retrieve)."""
+
     def __init__(self):
-        settings = get_settings()
-        self.table = settings.rag_table
-        self.top_k = settings.rag_top_k
-        self.min_score = settings.rag_min_score
-        self.embed_dim = settings.embedding_dim
+        s = get_settings()
+        self.table = s.rag_table  # fixed string from your config, e.g. "rag_chunks"
+        self.top_k = s.rag_top_k
+        self.min_score = s.rag_min_score
+        self.embed_dim = s.embedding_dim
 
         self._embedder = OpenAIEmbeddings(
-            model=settings.embedding_model,
-            api_key=settings.openrouter_api_key,
+            model=s.embedding_model,
+            api_key=s.openrouter_api_key,
             base_url="https://openrouter.ai/api/v1",
             check_embedding_ctx_length=False,
             chunk_size=64,
             timeout=30,
             max_retries=2,
         )
-
-        self._engine = create_async_engine(settings.database_url, pool_size=5)
+        # database_url must use the asyncpg driver:
+        # postgresql+asyncpg://user:pass@host:5432/db
+        self._engine = create_async_engine(s.database_url, pool_size=5)
         self._pg_engine = PGEngine.from_engine(self._engine)
         self._store: PGVectorStore | None = None
         self._splitter = RecursiveCharacterTextSplitter(
@@ -46,22 +50,29 @@ class RAGPipeline:
         )
 
     async def setup(self):
-        """Create extension + table + store. Call once at startup"""
+        """Create extension + table + store. Call once at startup."""
         async with self._engine.begin() as conn:
             await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            exists = await conn.scalar(
+                text("SELECT to_regclass(:name) IS NOT NULL"),
+                {"name": f"public.{self.table}"}
+            )
+        
+        if not exists:
+            await self._pg_engine.ainit_vectorstore_table(
+                table_name=self.table,
+                vector_size=self.embed_dim,
+                # "source" becomes a real column so we can filter/delete on it
+                metadata_columns=[Column("source", "TEXT", nullable=False)],
+            )
 
-        await self._pg_engine.ainit_vectorstore_table(
-            table_name=self.table,
-            vector_size=self.embed_dim,
-            metadata_column=[Column("source", "TEXT", nullable=False)],
-        )
         self._store = await PGVectorStore.create(
             engine=self._pg_engine,
             table_name=self.table,
             embedding_service=self._embedder,
-            metadata_column=["source"],
+            metadata_columns=["source"],
         )
-        logger.info(f"pgvector table '{self.table} ready")
+        logger.info(f"pgvector table '{self.table}' ready")
 
     @traceable(name="rag_ingest")
     async def ingest(self, text_: str, source: str) -> int:
@@ -79,21 +90,23 @@ class RAGPipeline:
                 {"source": source},
             )
 
-        id = [str(uuid.uuid5(uuid.NAMESPACE_URL, f"{source}:{1}")) for i in range(len(docs))]
+        ids = [str(uuid.uuid5(uuid.NAMESPACE_URL, f"{source}:{i}")) for i in range(len(docs))]
         await self._store.aadd_documents(docs, ids=ids)
         return len(docs)
 
     @traceable(name="rag_retrieve")
     async def retrieve(self, query: str) -> list[RetrievedChunk]:
-        results = await self._store.asimilarity_search_with_score(query, k=self.top_k)
+        results = await self._store.asimilarity_search_with_score(
+            query, k=self.top_k
+        )
         chunks = []
         for doc, distance in results:
-            score = 1.0 - distance 
+            score = 1.0 - distance  # cosine distance -> similarity
             if score >= self.min_score:
                 chunks.append(
                     RetrievedChunk(
                         text=doc.page_content,
-                        source=doc.metadat["source"],
+                        source=doc.metadata["source"],
                         score=score,
                     )
                 )

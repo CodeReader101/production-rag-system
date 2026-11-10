@@ -22,7 +22,7 @@ class ChatResponse(BaseModel):
     cached: bool = False
     processing_time_ms: float
     timestamp: str = Field(default_factory=lambda:datetime.now(timezone.utc).isoformat())
-
+    sources: list[str] = []
 
 class HealthResponse(BaseModel):
     """Health check response"""
@@ -47,3 +47,11 @@ class ErrorResponse(BaseModel):
     detail: str | None = None
     request_id: str | None = None
 
+
+class IngestRequest(BaseModel):
+    source: str                      
+    text: str
+
+class IngestResponse(BaseModel):
+    source: str
+    chunks_indexed: int
