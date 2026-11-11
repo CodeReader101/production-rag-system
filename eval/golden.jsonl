@@ -1,0 +1,22 @@
+{"question": "How long do refunds take to process?", "expected_snippet": "12 business days", "expected_answer": "12 business days", "source": "nimbus_policy", "type": "lookup"}
+{"question": "Who founded Nimbus Learning?", "expected_snippet": "Meera Kulkarni", "expected_answer": "Meera Kulkarni", "source": "nimbus_policy", "type": "lookup"}
+{"question": "In which city is the Nimbus headquarters?", "expected_snippet": "headquarters are in Pune", "expected_answer": "Pune", "source": "nimbus_policy", "type": "lookup"}
+{"question": "How many people does Nimbus employ?", "expected_snippet": "214 people", "expected_answer": "214", "source": "nimbus_policy", "type": "lookup"}
+{"question": "What is the refund window for Nimbus Practice subscriptions?", "expected_snippet": "refundable within 7 days", "expected_answer": "7 days, if no mock test has been started", "source": "nimbus_policy", "type": "lookup"}
+{"question": "How much does the Mentor Solo plan cost per month?", "expected_snippet": "5,500", "expected_answer": "5,500 INR", "source": "nimbus_policy", "type": "table"}
+{"question": "What are the customer support hours?", "expected_snippet": "9:15 AM to 6:30 PM IST", "expected_answer": "Monday to Saturday, 9:15 AM to 6:30 PM IST", "source": "nimbus_policy", "type": "lookup"}
+{"question": "Who is the dedicated support contact for Mentor plan students?", "expected_snippet": "Rohan Deshmukh", "expected_answer": "Rohan Deshmukh", "source": "nimbus_policy", "type": "lookup"}
+{"question": "How many days of paid leave do full-time employees get per year?", "expected_snippet": "24 days of paid leave", "expected_answer": "24 days", "source": "nimbus_policy", "type": "lookup"}
+{"question": "How many unused leave days can be carried over to the next year?", "expected_snippet": "Up to 10 unused days", "expected_answer": "Up to 10 days", "source": "nimbus_policy", "type": "lookup"}
+{"question": "How long are recorded classes kept on the Plus plan?", "expected_snippet": "90 days on the Plus plan", "expected_answer": "90 days", "source": "nimbus_policy", "type": "lookup"}
+{"question": "What discount do I get for annual billing?", "expected_snippet": "15 percent discount", "expected_answer": "15 percent", "source": "nimbus_policy", "type": "lookup"}
+{"question": "How much is the one-time home-office allowance?", "expected_snippet": "8,000 INR", "expected_answer": "8,000 INR", "source": "nimbus_policy", "type": "lookup"}
+{"question": "How long does Nimbus keep payment records?", "expected_snippet": "8 years", "expected_answer": "8 years", "source": "nimbus_policy", "type": "lookup"}
+{"question": "Can I get my money back for a Mentor session I already attended?", "expected_snippet": "never refundable", "expected_answer": "No, completed Mentor sessions are never refundable", "source": "nimbus_policy", "type": "paraphrase"}
+{"question": "How many days a week am I allowed to work from home?", "expected_snippet": "up to 3 days per week", "expected_answer": "Up to 3 days per week, with manager approval", "source": "nimbus_policy", "type": "paraphrase"}
+{"question": "Compare how long recordings are kept on the Plus plan versus the Basic plan.", "expected_snippet": "90 days on the Plus plan", "expected_answer": "90 days on Plus, 30 days on Basic", "source": "nimbus_policy", "type": "multi_fact"}
+{"question": "What discount do government school students get and on which plan?", "expected_snippet": "40 percent scholarship discount", "expected_answer": "40 percent off Classroom Basic, with a school certificate", "source": "nimbus_policy", "type": "paraphrase"}
+{"question": "What is Nimbus Learning's policy on bringing pets to the office?", "expected_snippet": null, "expected_answer": "REFUSE", "source": null, "type": "unanswerable"}
+{"question": "What is the CEO's annual salary at Nimbus Learning?", "expected_snippet": null, "expected_answer": "REFUSE", "source": null, "type": "unanswerable"}
+{"question": "Does Nimbus offer courses in Spanish?", "expected_snippet": null, "expected_answer": "REFUSE", "source": null, "type": "unanswerable"}
+{"question": "What is Nimbus Learning's stock ticker symbol?", "expected_snippet": null, "expected_answer": "REFUSE", "source": null, "type": "unanswerable"}

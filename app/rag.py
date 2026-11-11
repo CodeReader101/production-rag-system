@@ -1,5 +1,6 @@
 import uuid
 from dataclasses import dataclass
+import re
 
 from langchain_openai import OpenAIEmbeddings
 from langchain_postgres import Column, PGEngine, PGVectorStore
@@ -13,6 +14,8 @@ from monitoring import get_logger
 
 logger = get_logger()
 
+
+_CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 @dataclass
 class RetrievedChunk:
@@ -77,6 +80,7 @@ class RAGPipeline:
     @traceable(name="rag_ingest")
     async def ingest(self, text_: str, source: str) -> int:
         """Idempotent per source: re-ingesting replaces the old chunks."""
+        text_ = _CONTROL_CHARS.sub("", text_)
         docs = self._splitter.create_documents(
             [text_], metadatas=[{"source": source}]
         )
