@@ -235,7 +235,7 @@ async def chat(request: Request, body: ChatRequest):
 
     return ChatResponse(
         response=validated_response,
-        sources=sources,          # this line is the fix
+        sources=sources,        
         thread_id=body.thread_id,
         model_used=model_used,
         cached=False,

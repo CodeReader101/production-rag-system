@@ -29,9 +29,9 @@ class RAGPipeline:
 
     def __init__(self):
         s = get_settings()
-        self.table = s.rag_table  # fixed string from your config, e.g. "rag_chunks"
+        self.table = s.rag_table  
         self.top_k = s.rag_top_k
-        self.min_score = s.rag_min_score
+        self.min_score = s.rag_min_score  # similiarity threshold
         self.embed_dim = s.embedding_dim
 
         self._embedder = OpenAIEmbeddings(
@@ -65,7 +65,6 @@ class RAGPipeline:
             await self._pg_engine.ainit_vectorstore_table(
                 table_name=self.table,
                 vector_size=self.embed_dim,
-                # "source" becomes a real column so we can filter/delete on it
                 metadata_columns=[Column("source", "TEXT", nullable=False)],
             )
 

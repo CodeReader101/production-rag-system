@@ -1,7 +1,12 @@
-# eval/run_retrieval_eval.py
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+
 import asyncio, json
 from rag import RAGPipeline
 
+# number of chunks to retrieve
 K = 5
 
 
@@ -19,6 +24,8 @@ async def main():
     hits, rr = 0, 0.0
     for row in rows:
         chunks = await rag.retrieve(row["question"])
+        for c in chunks:
+            print(round(c.score, 3), c.source, c.text[:120].replace("\n", " "))
         rank = next(
             (i + 1 for i, c in enumerate(chunks)
             if norm(row["expected_snippet"]) in norm(c.text)),
