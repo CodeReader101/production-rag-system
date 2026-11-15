@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     rag_table: str = "rag_documents"
     rag_top_k: int = 4
     rag_min_score: float = 0.35
-    embedding_model: str = "nvidia/nemotron-3.5-embed-1b:free"
+    embedding_model: str = "openai/text-embedding-3-small"
     embedding_dim: int = 1536
     qdrant_url: str = ""
     admin_api_key: str

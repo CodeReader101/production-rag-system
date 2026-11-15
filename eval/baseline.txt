@@ -1,0 +1,58 @@
+D:\Projects\rag-system\.venv\Lib\site-packages\langchain_core\utils\pydantic.py:42: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1 import BaseModel as BaseModelV1
+{"timestamp": "2026-11-15T10:29:31.853759+00:00", "level": "INFO", "message": "pgvector table 'rag_documents' ready", "module": "rag", "function": "setup"}
+MISS: What BLEU score did the big model reach on English-to-German translation?
+    0.645 [attention_is_all_you_need] 'in Table 2) outperforms the best previously reported models (including ensembles) by more '
+    0.641 [attention_is_all_you_need] 'Table 2: The Transformer achieves better BLEU scores than previous state-of-the-art models'
+    0.630 [attention_is_all_you_need] 'Residual Dropout We apply dropout [33] to the output of each sub-layer, before it is added'
+MISS: How much larger a time step does the scheme use than the conventional regime?
+    0.552 [attention_spurious_oscillations] 'advanced from the same initial conditions for 80 steps at 𝐶 = 0.4 and 20 steps at 𝐶 = 1.6.'
+    0.550 [attention_spurious_oscillations] 'step normalized by the cell width. Hence, \n 𝑅𝑖+1 2 = |ν̅𝑖+1 2 | = |𝑢̅𝑖+1 2 | Δ𝑡 Δ𝑥 (8) \nis'
+    0.536 [attention_spurious_oscillations] 'Table I contrasts this objective with existing approaches to large displacements. \nTable I'
+MISS: Which standard scheme is used as a baseline comparison?
+    0.502 [attention_spurious_oscillations] '8 \nForward Euler provide a controlled one-stage comparison that isolates the face-flux or '
+    0.455 [attention_spurious_oscillations] 'ENO-3 0.4 80 0.0047 0.0162 2.8 × 10−17 0/256 \nWENO-5 0.4 80 0.0066 0.0219 2.8 × 10−17 0/25'
+    0.445 [auto_scaffold] 'deviation over 3 seeds. Gray rows are from Lin et al. (2026a) and use the larger Qwen2.5-7'
+MISS: What is the central mechanism test problem?
+    0.427 [attention_spurious_oscillations] 'the primary fixed-checkpoint experiments. \n4. Evaluation Protocol and Diagnostics \nThe exp'
+    0.370 [attention_spurious_oscillations] '23 \nAPPENDIX B: MECHANISM ROBUSTNESS AND MATCHED CONTROLS \nMechanism robustness is evaluat'
+    0.367 [auto_scaffold] 'intermediate result; to use a contingency table for two-attribute counts; to respect the o'
+MISS: How many stages per update does the scheme use with the larger time step?
+    0.560 [attention_spurious_oscillations] 'nearby cells satisfy this requirement by using small time steps. The proposed scheme expos'
+    0.559 [attention_spurious_oscillations] 'advanced from the same initial conditions for 80 steps at 𝐶 = 0.4 and 20 steps at 𝐶 = 1.6.'
+    0.539 [attention_spurious_oscillations] 'several small updates without sacrificing shock sharpness. Reducing the number of autoregr'
+MISS: How does the learned attention behave near shocks?
+    0.590 [attention_spurious_oscillations] '3 \nThis leads to one central question: \nCan attention step beyond the CFL barrier without '
+    0.537 [attention_spurious_oscillations] '1 \nAttention Is All You Need (to Avoid Spurious Oscillations) \nJinyoung Jeong1, Joseph B. '
+    0.527 [attention_spurious_oscillations] 'and conservation at small time steps? Can the same learned flux advance shocks with a time'
+MISS: How is the weight assigned to each value computed in attention?
+    0.641 [attention_spurious_oscillations] 'Attention weights are not identical to WENO reconstruction weights or to the final numeric'
+    0.627 [attention_spurious_oscillations] 'candidates equally; it assigns larger weights to the inputs that are more relevant to the '
+    0.602 [attention_is_all_you_need] 'In practice, we compute the attention function on a set of queries simultaneously, packed '
+MISS: In how many domains do AutoScaffold students beat the matching RL baselines?
+    0.747 [auto_scaffold] 'domains, requiring minimal domain-specific input such as the task description and the task'
+    0.708 [auto_scaffold] 'and class list, improves over the corresponding RL baseline under four RL algorithms (GiGP'
+    0.706 [auto_scaffold] 'AutoScaffold: AI-Guided Scaffolding for RL of Language ModelsPREPRINT\n(a) Who designs the '
+MISS: What limitation of outcome rewards motivates AutoScaffold?
+    0.628 [auto_scaffold] 'succeed, so the group contains both outcomes and the task can generate training signal. Wh'
+    0.623 [auto_scaffold] 'requirement places demands on AutoScaffold. Beingautomaticmeans that no human designs or r'
+    0.621 [auto_scaffold] 'student cannot yet solve, which play complementary roles in our analysis (Appendix A). Fur'
+MISS: Does AutoScaffold need a human to intervene during training?
+    0.672 [auto_scaffold] 'requirement places demands on AutoScaffold. Beingautomaticmeans that no human designs or r'
+    0.671 [auto_scaffold] 'AutoScaffold: AI-Guided Scaffolding for RL of Language ModelsPREPRINT\nTable 1:Positioning '
+    0.640 [auto_scaffold] 'AutoScaffold: AI-Guided Scaffolding for RL of Language ModelsPREPRINT\n(a) Who designs the '
+
+By source
+  attention_is_all_you_need          hit@5 11/13 = 0.85   MRR 0.51
+  attention_spurious_oscillations    hit@5 3/8 = 0.38   MRR 0.21
+  auto_scaffold                      hit@5 4/7 = 0.57   MRR 0.38
+  nimbus_learning_policy             hit@5 10/10 = 1.00   MRR 0.93
+
+By type
+  confusable                         hit@5 1/2 = 0.50   MRR 0.25
+  lookup                             hit@5 19/24 = 0.79   MRR 0.63
+  paraphrase                         hit@5 7/10 = 0.70   MRR 0.37
+  table                              hit@5 1/2 = 0.50   MRR 0.50
+
+OVERALL hit@5 28/38 = 0.74   MRR 0.54
+Top-1 chunk from the wrong document: 2/38
