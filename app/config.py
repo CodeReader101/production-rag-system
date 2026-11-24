@@ -37,6 +37,10 @@ class Settings(BaseSettings):
 
     model_config = {"env_file": ".env", "extra": "ignore"}  
 
+    reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"   # empty string disables reranking
+    rag_candidates: int = 20
+    rag_min_rerank_score: float = -1e9               # disabled until tuned from eval data
+
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"

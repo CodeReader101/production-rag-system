@@ -43,3 +43,4 @@
 {"question": "By how much can AutoScaffold raise the fraction of GPU kernel tasks that have a correct kernel faster than the PyTorch reference?", "expected_snippet": "5.0 points", "expected_answer": "Up to 5.0 points", "source": "auto_scaffold", "type": "lookup"}
 {"question": "What limitation of outcome rewards motivates AutoScaffold?", "expected_snippet": "single number", "expected_answer": "Outcome rewards reduce each attempt to a single number, leaving most of the training experience unused", "source": "auto_scaffold", "type": "paraphrase"}
 {"question": "Does AutoScaffold need a human to intervene during training?", "expected_snippet": "no human intervention", "expected_answer": "No, it uses no human intervention during training", "source": "auto_scaffold", "type": "paraphrase"}
+

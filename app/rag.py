@@ -12,6 +12,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from config import get_settings
 from monitoring import get_logger
 
+from reranker import Reranker
+
 logger = get_logger()
 
 
@@ -33,6 +35,9 @@ class RAGPipeline:
         self.top_k = s.rag_top_k
         self.min_score = s.rag_min_score  # similiarity threshold
         self.embed_dim = s.embedding_dim
+        self.candidates = s.rag_candidates
+        self.min_rerank_score = s.rag_min_rerank_score
+        self._reranker = Reranker(s.reranker_model) if s.reranker_model else None
 
         self._embedder = OpenAIEmbeddings(
             model=s.embedding_model,
@@ -97,22 +102,31 @@ class RAGPipeline:
         await self._store.aadd_documents(docs, ids=ids)
         return len(docs)
 
+
     @traceable(name="rag_retrieve")
-    async def retrieve(self, query: str) -> list[RetrievedChunk]:
-        results = await self._store.asimilarity_search_with_score(
-            query, k=self.top_k
-        )
-        chunks = []
-        for doc, distance in results:
-            score = 1.0 - distance  # cosine distance -> similarity
-            if score >= self.min_score:
-                chunks.append(
-                    RetrievedChunk(
-                        text=doc.page_content,
-                        source=doc.metadata["source"],
-                        score=score,
-                    )
-                )
+    async def retrieve(self, query: str, k: int | None = None,
+                       apply_threshold: bool = True,
+                       rerank: bool = True) -> list[RetrievedChunk]:
+        k = k or self.top_k
+        use_rerank = rerank and self._reranker is not None
+        n = max(k, self.candidates) if use_rerank else k
+
+        results = await self._store.asimilarity_search_with_score(query, k=n)
+        chunks = [
+            RetrievedChunk(text=doc.page_content,
+                           source=doc.metadata["source"],
+                           score=1.0 - distance)
+            for doc, distance in results
+        ]
+
+        if use_rerank:
+            chunks = (await self._reranker.rerank(query, chunks))[:k]
+            threshold = self.min_rerank_score
+        else:
+            threshold = self.min_score
+
+        if apply_threshold:
+            chunks = [c for c in chunks if c.score >= threshold]
         return chunks
 
     async def close(self):
