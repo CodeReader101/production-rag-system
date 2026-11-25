@@ -1,4 +1,4 @@
-# Production RAG API
+# Production RAG SYSTEM
 
 A retrieval-augmented chat API built with FastAPI and LangGraph. It combines hybrid retrieval and cross-encoder reranking with input/output security filtering, Redis response caching, model fallback, and an evaluation suite that measures retrieval quality, answer correctness and refusal behavior.
 
@@ -50,7 +50,7 @@ Evaluated on 46 questions over 4 documents: 34 answerable (lookup, paraphrase, t
 ## Quick start
 
 ```bash
-git clone https://github.com/<your-username>/<repo-name>.git
+git clone https://github.com/CodeReader101/production-rag-system.git
 cd <repo-name>
 cp .env.example .env          # fill in OPENROUTER_API_KEY, ADMIN_API_KEY and the model names
 docker compose up --build
@@ -151,7 +151,3 @@ The automated tests run offline (no database, Redis or model calls) and cover th
 - One shared corpus (no per-user access control) and no conversation memory: `thread_id` is accepted but unused.
 - The PII filter masks every email address and phone-like number in answers, including ones that appear in documents.
 - Latency is dominated by free-tier model calls and CPU reranking.
-
-## Future work
-
-Conversation memory with query rewriting, per-user document filtering, streaming responses, a larger held-out evaluation set, and contextual chunking.
