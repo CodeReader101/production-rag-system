@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     embedding_model: str = "openai/text-embedding-3-small"
     embedding_dim: int = 1536
     qdrant_url: str = ""
-    admin_api_key: str
+    admin_api_key: SecretStr
 
     database_url: str
     redis_url: str = "redis://localhost:6379/0"

@@ -94,44 +94,85 @@ class PIIDetector:
 
 # === Output Validation === 
 
-class OutputValidator:
-    """
-    Validate LLM outputs before returning to user.
-    catches PII leackage and harmful content in responses
-    """
+# old output validator
+# class OutputValidator:
+#     """
+#     Validate LLM outputs before returning to user.
+#     catches PII leackage and harmful content in responses
+#     """
 
-    # Check for harmful content patterns
+#     # Check for harmful content patterns
+#     HARMFUL_PATTERNS = [
+#         re.compile(r"here('s| is) (how|the way) to (hack|steal|attack)", re.I),
+#         re.compile(r"password\s+is\s+", re.I),
+#         re.compile(r"api[_\s]?key\s*[:=]", re.I),
+#     ]
+
+#     def __init__(self):
+#         self.pii_detector = PIIDetector()
+
+#     def validate(self, output: str) -> tuple[str, list[str]]: 
+#         """
+#         Validate output
+#         Return: (is_valid, cleaned_output, reason_if_invalid)
+#         """
+#         warnings = []
+
+#         # check for PII leakage
+#         pii_found = self.pii_detector.detect(output)
+#         if pii_found:
+#             output = self.pii_detector.mask(output)
+#             warnings.append(f"PII masked in output: {list(pii_found.keys())}")
+
+#         # check for harmful content
+#         for pattern in self.HARMFUL_PATTERNS:
+#             if pattern.search(output):
+#                 output = '[Response blocked: potentially harmful content]'
+#                 warnings.append("Harmful content blocked")
+#                 break
+
+#         return output, warnings
+
+
+# updated validator
+
+class OutputValidator:
+    """Validate LLM outputs before returning to the user."""
+
+    # Real secret shapes, not the words "password" or "api key"
+    SECRET_PATTERNS = [
+        re.compile(r"\bsk-[A-Za-z0-9_-]{20,}"),            # OpenAI / OpenRouter style keys
+        re.compile(r"\bAKIA[0-9A-Z]{16}\b"),               # AWS access key id
+        re.compile(r"\bgh[pousr]_[A-Za-z0-9]{36,}\b"),     # GitHub tokens
+        re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
+    ]
     HARMFUL_PATTERNS = [
         re.compile(r"here('s| is) (how|the way) to (hack|steal|attack)", re.I),
-        re.compile(r"password\s+is\s+", re.I),
-        re.compile(r"api[_\s]?key\s*[:=]", re.I),
     ]
 
     def __init__(self):
         self.pii_detector = PIIDetector()
 
-    def validate(self, output: str) -> tuple[str, list[str]]: 
-        """
-        Validate output
-        Return: (is_valid, cleaned_output, reason_if_invalid)
-        """
+    def validate(self, output: str) -> tuple[str, list[str]]:
         warnings = []
 
-        # check for PII leakage
         pii_found = self.pii_detector.detect(output)
         if pii_found:
             output = self.pii_detector.mask(output)
             warnings.append(f"PII masked in output: {list(pii_found.keys())}")
 
-        # check for harmful content
+        for pattern in self.SECRET_PATTERNS:
+            if pattern.search(output):
+                output = pattern.sub("[SECRET REDACTED]", output)
+                warnings.append("Secret redacted in output")
+
         for pattern in self.HARMFUL_PATTERNS:
             if pattern.search(output):
-                output = '[Response blocked: potentially harmful content]'
+                output = "[Response blocked: potentially harmful content]"
                 warnings.append("Harmful content blocked")
                 break
 
         return output, warnings
-
 
 # === Secure pipeline === 
 
@@ -149,7 +190,7 @@ class SecurityPipeline:
         self.output_validator = OutputValidator()
 
 
-    @traceable(name="security_check_input")
+    # @traceable(name="security_check_input")
     def check_input(self, text: str) -> tuple[bool, str, list[str]]:
         """
         Process input through security pipeline.
@@ -175,7 +216,7 @@ class SecurityPipeline:
         return True, cleaned, notes
 
     
-    @traceable(name="security_check_output")
+    # @traceable(name="security_check_output")
     def check_output(self, text: str) -> tuple[str, list[str]]:
         """
         Validate output before returning to client.

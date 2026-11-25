@@ -1,12 +1,12 @@
 import asyncio
 from dataclasses import replace
 
-from sentence_transformers import CrossEncoder
 
 class Reranker:
     """Cross-encoder reranker. Scores (query, chunk) pairs jointly."""
 
     def __init__(self, model_name: str):
+        from sentence_transformers import CrossEncoder   # moved out of the module top so it only import when reranker is needed not unnecssarly and increase the load time
         self._model = CrossEncoder(model_name)
 
     async def rerank(self, query: str, chunks: list) -> list:

@@ -26,6 +26,9 @@ class JSONFormatter(logging.Formatter):
         if hasattr(record, "extra_data"):
             log_obj.update(record.extra_data)
 
+        if record.exc_info:
+            log_obj["exception"] = self.formatException(record.exc_info)
+
         return json.dumps(log_obj, default=str)
 
 def get_logger(name: str = "production-api") -> logging.Logger:
@@ -115,8 +118,13 @@ class RequestTimer:
 
     def __enter__(self):
         self.start = time.perf_counter()
+        self._end = None
         return self
 
     def __exit__(self, *args):
-        self.elapsed_ms = (time.perf_counter() - self.start) * 1000
+        self._end = time.perf_counter()
 
+    @property
+    def elapsed_ms(self) -> float:
+        end = self._end if self._end is not None else time.perf_counter()
+        return (end - self.start) * 1000
