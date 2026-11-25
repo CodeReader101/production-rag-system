@@ -174,4 +174,5 @@ class ProductionAgent:
             "model_used": result.get("model_used", "unknown"),
             "error": result.get("error"),
             "sources": result.get("sources", []),
+            "context": result.get("context", ""), 
         }

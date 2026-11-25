@@ -3,7 +3,6 @@ from dataclasses import replace
 
 from sentence_transformers import CrossEncoder
 
-
 class Reranker:
     """Cross-encoder reranker. Scores (query, chunk) pairs jointly."""
 

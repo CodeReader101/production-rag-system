@@ -1,6 +1,8 @@
+import asyncio
+import re
+import time
 import uuid
 from dataclasses import dataclass
-import re
 
 from langchain_openai import OpenAIEmbeddings
 from langchain_postgres import Column, PGEngine, PGVectorStore
@@ -26,6 +28,18 @@ class RetrievedChunk:
     score: float
 
 
+def rrf(rank_lists: list[list[RetrievedChunk]], k: int = 60) -> list[RetrievedChunk]:
+    """Reciprocal Rank Fusion: merges ranked lists without normalizing scores."""
+    scores: dict[tuple, float] = {}
+    chunks: dict[tuple, RetrievedChunk] = {}
+    for lst in rank_lists:
+        for rank, c in enumerate(lst, 1):
+            key = (c.source, c.text)
+            scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank)
+            chunks.setdefault(key, c)
+    return [chunks[key] for key in sorted(scores, key=scores.get, reverse=True)]
+
+
 class RAGPipeline:
     """Chunk -> embed -> store (ingest) and embed -> search (retrieve)."""
 
@@ -37,6 +51,7 @@ class RAGPipeline:
         self.embed_dim = s.embedding_dim
         self.candidates = s.rag_candidates
         self.min_rerank_score = s.rag_min_rerank_score
+        self.hybrid = s.rag_hybrid
         self._reranker = Reranker(s.reranker_model) if s.reranker_model else None
 
         self._embedder = OpenAIEmbeddings(
@@ -79,7 +94,14 @@ class RAGPipeline:
             embedding_service=self._embedder,
             metadata_columns=["source"],
         )
-        logger.info(f"pgvector table '{self.table}' ready")
+
+        # Full-text index for the keyword leg (safe to run on every startup)
+        async with self._engine.begin() as conn:
+            await conn.execute(text(
+                f'CREATE INDEX IF NOT EXISTS "{self.table}_fts_idx" ON "{self.table}" '
+                f"USING GIN (to_tsvector('english', content))"
+            ))
+        logger.info(f"pgvector table '{self.table}' ready (hybrid={self.hybrid})")
 
     @traceable(name="rag_ingest")
     async def ingest(self, text_: str, source: str) -> int:
@@ -102,6 +124,29 @@ class RAGPipeline:
         await self._store.aadd_documents(docs, ids=ids)
         return len(docs)
 
+    async def _vector_search(self, query: str, n: int) -> list[RetrievedChunk]:
+        results = await self._store.asimilarity_search_with_score(query, k=n)
+        return [
+            RetrievedChunk(text=doc.page_content,
+                           source=doc.metadata["source"],
+                           score=1.0 - distance)
+            for doc, distance in results
+        ]
+
+    async def _keyword_search(self, query: str, n: int) -> list[RetrievedChunk]:
+        """Postgres full-text search (not true BM25). Query words are OR-ed together."""
+        words = [w for w in re.findall(r"[a-z0-9]+", query.lower()) if len(w) > 2]
+        if not words:
+            return []
+        tsq = " or ".join(words)  # websearch_to_tsquery treats 'or' as OR and never errors
+        async with self._engine.connect() as conn:
+            rows = (await conn.execute(text(
+                f'SELECT source, content, ts_rank_cd(to_tsvector(\'english\', content), q) AS r '
+                f'FROM "{self.table}", websearch_to_tsquery(\'english\', :q) q '
+                f"WHERE to_tsvector('english', content) @@ q "
+                f"ORDER BY r DESC LIMIT :n"
+            ), {"q": tsq, "n": n})).all()
+        return [RetrievedChunk(text=c, source=s, score=float(r)) for s, c, r in rows]
 
     @traceable(name="rag_retrieve")
     async def retrieve(self, query: str, k: int | None = None,
@@ -111,23 +156,33 @@ class RAGPipeline:
         use_rerank = rerank and self._reranker is not None
         n = max(k, self.candidates) if use_rerank else k
 
-        results = await self._store.asimilarity_search_with_score(query, k=n)
-        chunks = [
-            RetrievedChunk(text=doc.page_content,
-                           source=doc.metadata["source"],
-                           score=1.0 - distance)
-            for doc, distance in results
-        ]
+        if self.hybrid:
+            vec, kw = await asyncio.gather(
+                self._vector_search(query, n), self._keyword_search(query, n))
+            chunks = rrf([vec, kw])[:n]
+        else:
+            chunks = await self._vector_search(query, n)
 
         if use_rerank:
-            chunks = (await self._reranker.rerank(query, chunks))[:k]
-            threshold = self.min_rerank_score
+            t = time.perf_counter()
+            try:
+                chunks = (await asyncio.wait_for(
+                    self._reranker.rerank(query, chunks), timeout=8))[:k]
+                threshold = self.min_rerank_score
+            except asyncio.TimeoutError:
+                logger.warning("rerank timed out; using first-stage ranking")
+                chunks = chunks[:k]
+                threshold = None
+            logger.info("rerank done", extra={"extra_data": {
+                "ms": round((time.perf_counter() - t) * 1000), "n": n}})
         else:
-            threshold = self.min_score
+            chunks = chunks[:k]
+            # a cosine threshold doesn't apply to keyword-only hits
+            threshold = None if self.hybrid else self.min_score
 
-        if apply_threshold:
+        if apply_threshold and threshold is not None:
             chunks = [c for c in chunks if c.score >= threshold]
         return chunks
-
+    
     async def close(self):
         await self._engine.dispose()

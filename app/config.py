@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     # LLM configuration
     openrouter_api_key: SecretStr
     primary_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free" 
+    judge_model: str = "baidu/ernie-5.5-flash-preview:free"
     fallback_model: str = "recursive/flint-v1.0:free"
 
     # Langsmith
@@ -27,6 +28,7 @@ class Settings(BaseSettings):
     rag_table: str = "rag_documents"
     rag_top_k: int = 4
     rag_min_score: float = 0.35
+    rag_hybrid: bool = True
     embedding_model: str = "openai/text-embedding-3-small"
     embedding_dim: int = 1536
     qdrant_url: str = ""
@@ -51,7 +53,7 @@ def _export_langsmith_env(settings: "Settings") -> None:
         os.environ["LANGSMITH_TRACING"] = str(settings.langsmith_tracing).lower()
         os.environ["LANGSMITH_API_KEY"] = settings.langsmith_api_key
         os.environ["LANGSMITH_PROJECT"] = settings.langsmith_project
-
+        os.environ["JUDGE_MODEL"] = settings.judge_model
 
 @lru_cache
 def get_settings() -> Settings:

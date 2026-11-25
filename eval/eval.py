@@ -54,6 +54,8 @@ async def audit(rag: RAGPipeline, golden: list[dict]) -> list[dict]:
 
     problems = []
     for g in golden:
+        if g["source"] is None:
+            continue
         chunks = by_source.get(g["source"])
         if not chunks:
             problems.append({**g, "issue": "source not ingested (name mismatch?)"})
@@ -79,11 +81,15 @@ async def main(path: str, tag: str):
         t0 = time.perf_counter()
         chunks = await rag.retrieve(g["question"], k=max(KS), apply_threshold=False, rerank=RERANK)
         latency_ms = (time.perf_counter() - t0) * 1000
-        snip = squash(g["expected_snippet"])
 
-        chunk_rank = next((i for i, c in enumerate(chunks, 1)
-                           if c.source == g["source"] and snip in squash(c.text)), None)
-        source_rank = next((i for i, c in enumerate(chunks, 1) if c.source == g["source"]), None)
+        if g["source"] is None:            # unanswerable: nothing to find
+            chunk_rank = source_rank = None
+        else:
+            snip = squash(g["expected_snippet"])
+            chunk_rank = next((i for i, c in enumerate(chunks, 1)
+                               if c.source == g["source"] and snip in squash(c.text)), None)
+            source_rank = next((i for i, c in enumerate(chunks, 1)
+                                if c.source == g["source"]), None)
         rows.append({
             **g,
             "chunk_rank": chunk_rank,
@@ -94,38 +100,46 @@ async def main(path: str, tag: str):
             "latency_ms": latency_ms,
         })
 
+    answerable = [r for r in rows if r["source"] is not None]
+    unans = [r for r in rows if r["source"] is None]
+
     by_type, by_source = defaultdict(list), defaultdict(list)
-    for r in rows:
+    for r in answerable:
         by_type[r["type"]].append(r)
         by_source[r["source"]].append(r)
-    print_table("OVERALL", {"all": summarize(rows)})
+    print_table("OVERALL", {"all": summarize(answerable)})
     print_table("BY QUESTION TYPE", {k: summarize(v) for k, v in by_type.items()})
     print_table("BY SOURCE", {k: summarize(v) for k, v in by_source.items()})
 
-    # Threshold guidance: scores of the correct chunk when found
-    hit_scores = sorted(r["hit_score"] for r in rows if r["hit_score"] is not None)
+    hit_scores = sorted(r["hit_score"] for r in answerable if r["hit_score"] is not None)
     if hit_scores:
         print(f"\nCorrect-chunk scores: min={hit_scores[0]:.2f} "
               f"median={statistics.median(hit_scores):.2f} max={hit_scores[-1]:.2f}")
-        print(f"Current rag_min_score={rag.min_score}; it should sit below almost all of these.")
 
     lat = sorted(r["latency_ms"] for r in rows)
     print(f"Retrieval latency: p50={statistics.median(lat):.0f}ms "
-          f"p95={lat[int(len(lat) * 0.95) - 1]:.0f}ms")
+          f"p95={lat[max(int(len(lat) * 0.95) - 1, 0)]:.0f}ms")
 
-    misses = [r for r in rows if not r["chunk_rank"] or r["chunk_rank"] > 5]
+    misses = [r for r in answerable if not r["chunk_rank"] or r["chunk_rank"] > 5]
     print(f"\n== MISSES (not in top 5): {len(misses)} ==")
     for r in misses:
         print(f"- [{r['type']}/{r['source']}] {r['question']}\n"
               f"    expected: {r['expected_snippet']!r} | rank={r['chunk_rank']} "
               f"| top1={r['top1_source']} ({r['top1_score']:.2f})")
 
+    if unans:
+        u = sorted(round(r["top1_score"], 2) for r in unans)
+        ok = sorted(r["top1_score"] for r in answerable if r["chunk_rank"] == 1)
+        print(f"\n== UNANSWERABLE ({len(unans)}) ==")
+        print("top1 scores:", u)
+        if ok:
+            print(f"top1 scores when retrieval is correct: min={ok[0]:.2f} "
+                  f"median={ok[len(ok)//2]:.2f} max={ok[-1]:.2f}")
+
     Path("eval_results").mkdir(exist_ok=True)
-    out = {"tag": tag, "summary": summarize(rows), "rows": rows}
+    out = {"tag": tag, "summary": summarize(answerable), "rows": rows}
     Path(f"eval_results/{tag}.json").write_text(json.dumps(out, indent=2))
     await rag.close()
-
-
 if __name__ == "__main__":
     asyncio.run(main(sys.argv[1] if len(sys.argv) > 1 else "golden.jsonl",
                      sys.argv[2] if len(sys.argv) > 2 else "baseline"))
