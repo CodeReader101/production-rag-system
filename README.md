@@ -1,7 +1,5 @@
 # Production RAG SYSTEM
 
-## Built to measure what actually improves RAG quality: hybrid search and reranking vs. vector-only
-
 A retrieval-augmented chat API built with FastAPI and LangGraph. It combines hybrid retrieval and cross-encoder reranking with input/output security filtering, Redis response caching, model fallback, and an evaluation suite that measures retrieval quality, answer correctness and refusal behavior.
 
 ![Example /chat response with sources](docs/screenshot.png)
@@ -53,7 +51,7 @@ Evaluated on 46 questions over 4 documents: 34 answerable (lookup, paraphrase, t
 
 ```bash
 git clone https://github.com/CodeReader101/production-rag-system.git
-cd <production-rag-system>
+cd production-rag-system
 cp .env.example .env          # fill in OPENROUTER_API_KEY, ADMIN_API_KEY and the model names
 docker compose up --build
 curl localhost:8000/health
